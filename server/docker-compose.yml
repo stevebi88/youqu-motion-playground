@@ -1,0 +1,13 @@
+services:
+  motion-gamepad:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    ports:
+      - "8443:8443"   # 网页 + WebSocket
+      - "8446:8446"   # ESP32 TCP
+    environment:
+      # 网页登录密码必须显式传入（也可写入同目录 .env 文件）
+      AUTH_PASSWORD: "${AUTH_PASSWORD:?请设置 AUTH_PASSWORD 环境变量}"
+    command: ["--auth", "${AUTH_PASSWORD}"]
+    restart: unless-stopped

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Pro 手柄输入测试</title>
+<style>body{font-family:monospace;background:#111;color:#0f0;padding:20px;font-size:14px}
+#btns div{display:inline-block;width:60px;margin:4px;padding:8px;background:#222;border:1px solid #444;border-radius:6px;text-align:center}
+.press{background:#0a0;color:#fff}
+#axes{margin-top:16px;white-space:pre}</style></head>
+<body><h3>Switch Pro Controller 输入监视</h3>
+<div id="status">等待手柄…（按任意虚拟键开始）</div><div id="btns"></div><div id="axes"></div>
+<script>
+const NAMES={0:"B",1:"A",2:"Y",3:"X",4:"L",5:"R",6:"ZL",7:"ZR",8:"-",9:"+",10:"RS",11:"LS",12:"HOME",13:"CAP",14:"D↑",15:"D↓",16:"D←",17:"D→"};
+let last="";
+function tick(){
+  const gps=navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp=null; for(const g of gps) if(g) gp=g;
+  if(!gp){ document.getElementById("status").textContent="等待手柄…"; requestAnimationFrame(tick); return; }
+  document.getElementById("status").textContent="手柄已连接: "+gp.id.slice(0,40)+" | mapping="+gp.mapping;
+  const bt=document.getElementById("btns");
+  if(!bt.children.length){ for(let i=0;i<18;i++){ const d=document.createElement("div"); d.id="b"+i; d.textContent=NAMES[i]||("B"+i); bt.appendChild(d); } }
+  let s="";
+  for(let i=0;i<Math.min(gp.buttons.length,18);i++){
+    const el=document.getElementById("b"+i);
+    if(el){ el.className=gp.buttons[i].pressed?"press":""; if(gp.buttons[i].pressed) s+=NAMES[i]+" "; }
+  }
+  const a=gp.axes;
+  document.getElementById("axes").textContent="axes("+a.length+"): "+Array.from(a).map(v=>v.toFixed(3)).join(" | ");
+  const line="按下: "+(s||"-");
+  if(line!==last){ last=line; document.title=line; }
+  requestAnimationFrame(tick);
+}
+window.addEventListener("gamepadconnected",e=>console.log("connected:",e.gamepad.id));
+tick();
+</script></body></html>

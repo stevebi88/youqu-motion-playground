@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>体感手柄 · Motion Gamepad</title>
+<style>
+  :root{
+    --bg:#f6f5fa; --card:#ffffff; --ink:#1e293b; --ink2:#64748b; --ink3:#94a3b8;
+    --pri:#7c3aed; --pri2:#a78bfa; --pri-soft:#ede9fe; --ok:#16a34a; --warn:#f59e0b; --bad:#dc2626;
+    --line:#e9e7f2; --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+    font-size:15px; line-height:1.4;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:520px; margin:0 auto; padding:12px 14px 40px;}
+
+  /* ---------- header ---------- */
+  header{display:flex; align-items:center; gap:10px; padding:6px 2px 12px;}
+  header .title{font-size:18px; font-weight:700; flex:1;}
+  .chip{display:flex; align-items:center; gap:5px; background:var(--card); border:1px solid var(--line);
+        border-radius:999px; padding:5px 10px; font-size:12px; color:var(--ink2);}
+  .chip.action{cursor:pointer; user-select:none; -webkit-user-select:none;}
+  .chip.action:active{background:var(--pri-soft); color:var(--pri);}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--ink3);}
+  .dot.on{background:var(--ok);}
+  .dot.warn{background:var(--warn);}
+  .dot.off{background:var(--bad);}
+
+  /* ---------- video ---------- */
+  .video-card{background:var(--card); border-radius:var(--radius); overflow:hidden;
+              border:1px solid var(--line); position:relative;}
+  .video-box{position:relative; width:100%; aspect-ratio:4/3; background:#111; overflow:hidden;}
+  .video-box video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1);}
+  .video-box canvas{position:absolute; inset:0; width:100%; height:100%;}
+  .video-cover{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+               gap:10px; color:#cbd5e1; font-size:13px; text-align:center; padding:0 24px; background:rgba(15,15,25,.72);}
+  .video-cover button{background:var(--pri); border:none; color:#fff; font-size:15px; font-weight:600;
+                      padding:12px 28px; border-radius:999px;}
+  .video-cover .hint{font-size:12px; color:#94a3b8; max-width:320px;}
+  .video-badge{position:absolute; top:10px; left:10px; z-index:3; display:flex; gap:6px;}
+  .badge{background:rgba(0,0,0,.55); color:#fff; font-size:11px; padding:4px 9px; border-radius:999px; backdrop-filter:blur(4px);}
+  .badge.calib{background:rgba(124,58,237,.75);}
+  .video-tools{position:absolute; top:10px; right:10px; z-index:3; display:flex; gap:6px;}
+  .tool-btn{width:34px; height:34px; border-radius:50%; border:none; background:rgba(0,0,0,.55); color:#fff;
+            font-size:15px; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);}
+  .toolbar{display:flex; gap:10px; padding:10px;}
+  .btn{flex:1; border:none; border-radius:12px; padding:12px; font-size:15px; font-weight:600;
+       background:var(--pri-soft); color:var(--pri);}
+  .btn.primary{background:var(--pri); color:#fff;}
+  .btn:disabled{opacity:.45;}
+
+  /* ---------- action cards ---------- */
+  .section{background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+           margin-top:14px; overflow:hidden;}
+  .section-h{display:flex; align-items:center; padding:14px 16px 4px;}
+  .section-h .name{font-size:16px; font-weight:700; flex:1;}
+  .section-h .aux{font-size:12px; color:var(--ink3);}
+  .act{display:flex; align-items:center; gap:12px; padding:12px 14px; border-top:1px solid var(--line);}
+  .act:first-of-type{border-top:none;}
+  .act .ico{width:40px; height:40px; border-radius:12px; background:var(--pri-soft);
+            display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .act .ico svg{width:22px; height:22px;}
+  .act .meta{flex:1; min-width:0;}
+  .act .meta .n{font-size:15px; font-weight:600;}
+  .act .meta .s{font-size:12px; color:var(--ink2); margin-top:1px; display:flex; align-items:center; gap:4px;}
+  .act .meta .s .k{display:inline-flex; align-items:center; background:#f1eefe; color:var(--pri);
+                   border-radius:6px; padding:1px 7px; font-size:12px; font-weight:600;}
+  .act .live{font-size:11px; padding:2px 7px; border-radius:6px; background:#f1f5f9; color:var(--ink3); min-width:52px; text-align:center;}
+  .act .live.hot{background:#fde8e8; color:var(--bad); font-weight:700;}
+  .act .live.on{background:#dcfce7; color:var(--ok); font-weight:700;}
+  .edit-btn{width:34px; height:34px; border-radius:10px; border:none; background:#f4f2fb; color:var(--ink2);
+            display:flex; align-items:center; justify-content:center;}
+  .toggle{position:relative; width:46px; height:28px; flex-shrink:0;}
+  .toggle input{opacity:0; width:0; height:0;}
+  .toggle .tk{position:absolute; inset:0; background:#e2e8f0; border-radius:999px; transition:.2s;}
+  .toggle .tk:before{content:""; position:absolute; width:22px; height:22px; left:3px; top:3px;
+                     background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .toggle input:checked + .tk{background:var(--pri);}
+  .toggle input:checked + .tk:before{transform:translateX(18px);}
+
+  /* ---------- collapsible ---------- */
+  details{margin-top:14px; background:var(--card); border:1px solid var(--line); border-radius:var(--radius);}
+  details summary{padding:14px 16px; font-size:15px; font-weight:700; cursor:pointer; list-style:none;
+                  display:flex; align-items:center;}
+  details summary::-webkit-details-marker{display:none;}
+  details summary:after{content:"›"; margin-left:auto; color:var(--ink3); font-size:20px; transform:rotate(90deg);}
+  details[open] summary:after{transform:rotate(-90deg);}
+  .dbody{padding:0 16px 16px;}
+  .kv{display:grid; grid-template-columns:1fr auto; gap:4px 12px; font-size:12px; color:var(--ink2);}
+  .kv b{color:var(--ink); font-weight:600; font-family:ui-monospace,Menlo,monospace;}
+  .bar{height:6px; background:#eef0f6; border-radius:4px; overflow:hidden; margin-top:2px;}
+  .bar i{display:block; height:100%; background:var(--pri2); border-radius:4px;}
+  #eventlog{margin-top:10px; background:#faf9ff; border:1px solid var(--line); border-radius:10px;
+            padding:8px 10px; font-size:11px; font-family:ui-monospace,Menlo,monospace; color:var(--ink2);
+            max-height:120px; overflow:auto; white-space:pre-wrap;}
+  .keypad{display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
+  .keypad button{border:1px solid var(--line); background:#faf9ff; border-radius:10px; padding:12px 0;
+                 font-size:14px; font-weight:600; color:var(--ink);}
+  .keypad button:active{background:var(--pri); color:#fff;}
+  .note{font-size:12px; color:var(--ink3); margin-top:10px;}
+  .slider{width:100%; accent-color:var(--pri);}
+
+  /* ---------- key sheet ---------- */
+  #sheet{position:fixed; inset:0; z-index:50; display:none;}
+  #sheet.open{display:block;}
+  #sheet .mask{position:absolute; inset:0; background:rgba(15,15,25,.4);}
+  #sheet .panel{position:absolute; left:0; right:0; bottom:0; background:var(--card);
+                border-radius:20px 20px 0 0; padding:18px 18px calc(18px + env(safe-area-inset-bottom));}
+  #sheet h3{margin:0 0 4px; font-size:16px;}
+  #sheet .sub{font-size:12px; color:var(--ink2); margin-bottom:14px;}
+  #sheet .keys{display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
+  #sheet .keys button{border:1.5px solid var(--line); background:#faf9ff; border-radius:10px; padding:12px 0;
+                      font-size:14px; font-weight:600; color:var(--ink);}
+  #sheet .keys button.sel{border-color:var(--pri); background:var(--pri-soft); color:var(--pri);}
+  #toast{position:fixed; left:50%; bottom:80px; transform:translateX(-50%); z-index:60;
+         background:rgba(30,30,45,.9); color:#fff; font-size:13px; padding:9px 16px; border-radius:999px;
+         opacity:0; transition:.25s; pointer-events:none; max-width:86vw; text-align:center;}
+  #toast.show{opacity:1;}
+  /* 动作分组标题 */
+  .group-h{font-size:11.5px; font-weight:700; color:#7c3aed; letter-spacing:.6px;
+           padding:12px 18px 4px; background:linear-gradient(90deg,#f5f3ff,transparent);}
+
+  /* ---------- 模式切换 ---------- */
+  .mode-tabs{display:flex; background:var(--card); border:1px solid var(--line);
+             border-radius:12px; padding:3px; gap:3px;}
+  .mode-tab{flex:1; text-align:center; padding:9px 0; border:none; border-radius:9px;
+            font-size:14px; font-weight:600; color:var(--ink2); background:transparent;}
+  .mode-tab.active{background:var(--pri); color:#fff;}
+
+  /* ---------- 虚拟手柄（横版深色机身） ---------- */
+  .pad-panel{background:#1d2130; border-radius:20px; padding:12px 14px 16px;
+             user-select:none; -webkit-user-select:none; touch-action:none;
+             box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
+  .pad-top{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .pad-title{flex:1; text-align:center; font-size:12px; color:#8a90a6; letter-spacing:2px;}
+  .shoulder-group{display:flex; gap:6px; width:132px;}
+  .sh-btn{flex:1; height:30px; border-radius:12px 12px 5px 5px; background:#333950; color:#c7cbdb;
+          font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center;}
+  .pad-mid{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .stick-zone{width:132px; height:132px; border-radius:50%; background:#262b3d;
+              position:relative; touch-action:none; flex-shrink:0;}
+  .stick-ring{position:absolute; inset:14px; border-radius:50%; border:1.5px dashed rgba(255,255,255,.12);}
+  .stick-cap{position:absolute; left:50%; top:50%; width:54px; height:54px; border-radius:50%;
+             transform:translate(-50%,-50%); background:#4b5270;
+             box-shadow:0 3px 10px rgba(0,0,0,.4), inset 0 2px 4px rgba(255,255,255,.14);}
+  .sys-col{display:flex; flex-direction:column; gap:8px; align-items:center; flex-shrink:0;}
+  .sys-btn{width:40px; height:40px; border-radius:50%; background:#333950; color:#c7cbdb;
+           font-size:20px; font-weight:600; display:flex; align-items:center; justify-content:center;}
+  .sys-home{font-size:9px; letter-spacing:1px; width:44px; height:44px;}
+  .abxy{position:relative; width:132px; height:132px; flex-shrink:0;}
+  .pad-btn{position:absolute; width:48px; height:48px; border-radius:50%; background:#333950;
+           color:#c7cbdb; font-weight:700; font-size:18px;
+           display:flex; align-items:center; justify-content:center;
+           box-shadow:0 3px 8px rgba(0,0,0,.35), inset 0 2px 3px rgba(255,255,255,.08);}
+  .abxy-x{top:0;    left:42px;}
+  .abxy-y{top:42px; left:0;}
+  .abxy-a{top:42px; right:0;}
+  .abxy-b{bottom:0; left:42px;}
+  .pad-col{display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0;}
+  .dpad{display:grid; grid-template-columns:repeat(3,34px); grid-template-rows:repeat(3,34px); gap:2px; margin-top:2px;}
+  .dp-btn{width:34px; height:34px; border-radius:8px; background:#333950; color:#c7cbdb;
+          display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1;
+          cursor:pointer; user-select:none; -webkit-user-select:none; touch-action:none;
+          transition:background .08s, transform .08s;}
+  .dp-btn.press{background:var(--pri); color:#fff; transform:scale(.94);}
+  .dp-up{grid-area:1/2;} .dp-left{grid-area:2/1;} .dp-right{grid-area:2/3;} .dp-down{grid-area:3/2;}
+  .stick-r{width:104px; height:104px;}
+  .stick-r .stick-cap{width:46px; height:46px;}
+  .stick-r .stick-ring{inset:10px;}
+  .sh-btn.press, .pad-btn.press, .sys-btn.press{background:var(--pri); color:#fff;
+           box-shadow:0 0 0 2px rgba(167,139,250,.45);}
+  .stick-cap.press{background:var(--pri2);}
+  .pad-panel .note{color:#8a90a6;}
+
+  /* ===== 竖屏（手机）：放大控件，利用纵向空间 ===== */
+  @media (orientation: portrait) {
+    .stick-zone{width:144px; height:144px;}
+    .stick-cap{width:58px; height:58px;}
+    .abxy{width:144px; height:144px;}
+    .pad-btn{width:52px; height:52px;}
+    .abxy-x{top:0;    left:46px;}
+    .abxy-y{top:46px; left:0;}
+    .abxy-a{top:46px; right:0;}
+    .abxy-b{bottom:0; left:46px;}
+    .dp-btn{width:38px; height:38px; font-size:12px;}
+    .dpad{grid-template-columns:repeat(3,38px); grid-template-rows:repeat(3,38px);}
+    .stick-r{width:112px; height:112px;}
+    .stick-r .stick-cap{width:50px; height:50px;}
+    .stick-r .stick-ring{inset:11px;}
+  }
+
+  /* ===== 横屏（手机矮屏）：横向铺开，降低高度，控件更大 ===== */
+  @media (orientation: landscape) and (max-height: 540px) {
+    .wrap{max-width:760px; padding:8px 12px 16px;}
+    .pad-panel{padding:8px 12px 12px; border-radius:16px;}
+    .pad-top{margin-bottom:6px;}
+    .pad-col{flex-direction:row; gap:12px; align-items:center;}
+    .dpad{margin-top:0;}
+    .stick-zone{width:148px; height:148px;}
+    .stick-cap{width:60px; height:60px;}
+    .abxy{width:148px; height:148px;}
+    .pad-btn{width:52px; height:52px;}
+    .abxy-x{top:0;    left:48px;}
+    .abxy-y{top:48px; left:0;}
+    .abxy-a{top:48px; right:0;}
+    .abxy-b{bottom:0; left:48px;}
+    .dp-btn{width:38px; height:38px; font-size:12px;}
+    .dpad{grid-template-columns:repeat(3,38px); grid-template-rows:repeat(3,38px);}
+    .stick-r{width:108px; height:108px;}
+    .stick-r .stick-cap{width:48px; height:48px;}
+    .stick-r .stick-ring{inset:10px;}
+  }
+
+  /* ===== 窄屏（手机竖屏）：收紧顶部排版，避免标题被挤换行 ===== */
+  @media (max-width: 430px) {
+    header{gap:6px; padding:4px 2px 10px;}
+    header .title{font-size:16px; flex:0 0 auto;}
+    .chip{font-size:10.5px; padding:3px 7px; gap:4px;}
+    .pad-title{font-size:11px; letter-spacing:0; white-space:nowrap;}
+    .wrap{padding:10px 10px 28px;}
+  }
+
+  /* 游戏预设切换 */
+  .preset-tabs{display:flex; gap:6px; margin:0 0 10px;}
+  .preset-tab{flex:1; padding:8px 6px; border-radius:10px; background:var(--card); border:1px solid var(--line);
+              color:var(--ink2); font-size:13px; cursor:pointer; transition:.15s;}
+  .preset-tab.active{background:var(--pri-soft); color:var(--pri); border-color:var(--pri2); font-weight:700;}
+  /* 横屏提示条 */
+  .rotate-hint{background:#fff7ed; color:#b45309; border:1px solid #fed7aa; border-radius:10px;
+               padding:8px 12px; font-size:12.5px; margin-bottom:8px; text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">体感手柄</div>
+    <div class="chip"><span id="dotServer" class="dot off"></span>服务</div>
+    <div class="chip"><span id="dotEsp" class="dot off"></span>ESP32</div>
+    <button type="button" class="chip action" id="chipControl" style="display:none">控制中</button>
+    <div class="chip" id="chipClients" style="display:none">1 台在线</div>
+    <div class="chip" id="chipLatency">– ms</div>
+  </header>
+
+  <form id="pairForm" class="toolbar" hidden style="display:none" autocomplete="off">
+    <input id="pairCode" type="password" placeholder="输入登录密码" aria-label="登录密码" autocapitalize="off" spellcheck="false" required>
+    <button type="submit" class="btn primary">登录</button>
+  </form>
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-mode="motion">体感模式</button>
+    <button class="mode-tab" data-mode="pad">虚拟手柄</button>
+  </div>
+
+  <div id="motionView">
+    <div class="preset-tabs" id="presetTabs">
+      <button class="preset-tab active" data-preset="zelda">🎮 塞尔达</button>
+      <button class="preset-tab" data-preset="racing">🏎️ 赛车</button>
+    </div>
+  <div class="video-card">
+    <div class="video-box" id="videoBox">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="video-badge">
+        <span class="badge" id="fpsBadge">– fps</span>
+        <span class="badge calib" id="calibBadge" style="display:none">校准中…</span>
+      </div>
+      <div class="video-tools">
+        <button class="tool-btn" id="flipBtn" title="切换摄像头">⟳</button>
+        <button class="tool-btn" id="recalBtn" title="重新校准">↺</button>
+      </div>
+      <div class="video-cover" id="cover">
+        <button id="startBtn">启动摄像头</button>
+        <div class="hint" id="coverHint">手机架在支架上，全身(至少髋到脚)入镜。<br>需 HTTPS 访问本页面，否则无法打开摄像头。</div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="btn primary" id="runBtn" disabled>开始检测</button>
+      <button class="btn" id="allUpBtn">全部松开</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-h">
+      <div class="name">动作映射</div>
+      <div class="aux" id="sensLabel">灵敏度 1.0</div>
+    </div>
+    <div style="padding:6px 16px 12px;">
+      <input type="range" class="slider" id="sensSlider" min="0.6" max="1.6" step="0.05" value="1.0">
+    </div>
+    <div id="actionList"></div>
+  </div>
+
+  <details>
+    <summary>调试面板</summary>
+    <div class="dbody">
+      <div class="kv" id="debugKV"></div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:8px 0;font-size:13px;">
+        <span>摇杆 <b id="stickOut">ly 0.00 · rx 0.00</b></span>
+        <label style="display:flex;gap:4px;align-items:center;"><input type="checkbox" id="invWalk">走路反向</label>
+        <label style="display:flex;gap:4px;align-items:center;"><input type="checkbox" id="invHead">转头反向</label>
+      </div>
+      <div id="eventlog">事件日志…</div>
+    </div>
+  </details>
+
+  </div><!-- /motionView -->
+
+  <div id="padView" style="display:none">
+    <div id="rotateHint" class="rotate-hint" style="display:none">📱 横屏使用按键更大更顺手（旋转手机即可）</div>
+    <div class="pad-panel" id="padPanel">
+      <div class="pad-top">
+        <div class="shoulder-group">
+          <div class="sh-btn" data-key="GP_L">L</div>
+          <div class="sh-btn" data-key="GP_ZL">ZL</div>
+        </div>
+        <div class="pad-title">虚拟手柄</div>
+        <div class="shoulder-group">
+          <div class="sh-btn" data-key="GP_ZR">ZR</div>
+          <div class="sh-btn" data-key="GP_R">R</div>
+        </div>
+      </div>
+      <div class="pad-mid">
+        <div class="pad-col">
+          <div class="stick-zone" id="stickZone">
+            <div class="stick-ring"></div>
+            <div class="stick-cap" id="stickCap"></div>
+          </div>
+          <div class="dpad" id="dpad">
+            <div class="dp-btn dp-up" data-key="GP_Up" title="十字↑ 技能">▲</div>
+            <div class="dp-btn dp-left" data-key="GP_Left" title="十字← 换武器">◀</div>
+            <div class="dp-btn dp-right" data-key="GP_Right" title="十字→ 换盾">▶</div>
+            <div class="dp-btn dp-down" data-key="GP_Down" title="十字↓ 吹口哨">▼</div>
+          </div>
+        </div>
+        <div class="sys-col">
+          <div class="sys-btn" data-key="GP_Minus">−</div>
+          <div class="sys-btn sys-home" data-key="GP_Home">HOME</div>
+          <div class="sys-btn" data-key="GP_Plus">+</div>
+        </div>
+        <div class="pad-col">
+          <div class="abxy">
+            <div class="pad-btn abxy-x" data-key="GP_X">X</div>
+            <div class="pad-btn abxy-y" data-key="GP_Y">Y</div>
+            <div class="pad-btn abxy-a" data-key="GP_A">A</div>
+            <div class="pad-btn abxy-b" data-key="GP_B">B</div>
+          </div>
+          <div class="stick-zone stick-r" id="stickZoneR">
+            <div class="stick-ring"></div>
+            <div class="stick-cap" id="stickCapR"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="section" style="padding:12px 16px;">
+      <div class="note" style="margin-top:0;">左摇杆=移动（支持斜向）· 右摇杆=视角 · 十字键=切武器/切盾/技能/口哨；A/B/X/Y、L/R/ZL/ZR 为手柄语义键。按住持续输入，松开自动释放。</div>
+    </div>
+  </div><!-- /padView -->
+</div>
+
+<div id="sheet">
+  <div class="mask" id="sheetMask"></div>
+  <div class="panel">
+    <h3>选择按键</h3>
+    <div class="sub" id="sheetSub"></div>
+    <div class="keys" id="sheetKeys"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="lib/tf.min.js"></script>
+<script src="lib/pose-detection.min.js"></script>
+<script>
+"use strict";
+
+/* ================= 键位表 ================= */
+const KEY_LABEL = {
+  Up:"↑", Down:"↓", Left:"←", Right:"→",
+  Space:"空格", Enter:"回车", Shift:"Shift",
+  W:"W", A:"A", S:"S", D:"D", Z:"Z", C:"C", X:"X", Q:"Q", E:"E", F:"F", R:"R",
+  One:"1", Two:"2", Three:"3", Four:"4", Five:"5",
+  GP_A:"A键", GP_B:"B键", GP_X:"X键", GP_Y:"Y键", GP_L:"L", GP_R:"R",
+  GP_ZL:"ZL", GP_ZR:"ZR", GP_LS:"L3", GP_RS:"R3",
+  GP_Up:"十字↑", GP_Down:"十字↓", GP_Left:"十字←", GP_Right:"十字→",
+  GP_Plus:"+", GP_Minus:"-", GP_Home:"HOME",
+};
+const KEY_LIST = [
+  "GP_A","GP_B","GP_X","GP_Y","GP_L","GP_R","GP_ZL","GP_ZR","GP_LS","GP_RS",
+  "GP_Up","GP_Down","GP_Left","GP_Right","GP_Plus","GP_Minus","GP_Home",
+];
+/* 兼容旧映射：键盘语义键归到最接近的手柄键；板子只认 GP_* */
+const KEY_ALIAS = {
+  Up:"GP_Up", Down:"GP_Down", Left:"GP_Left", Right:"GP_Right",
+  Space:"GP_A", Enter:"GP_Plus", Shift:"GP_L",
+  W:"GP_Up", A:"GP_Left", S:"GP_Down", D:"GP_Right",
+  Z:"GP_B", C:"GP_X", X:"GP_Y", Q:"GP_L", E:"GP_R", F:"GP_ZL", R:"GP_ZR",
+  One:"GP_Minus", Two:"GP_Plus", Three:"GP_LS", Four:"GP_RS", Five:"GP_Home",
+};
+/* 位序必须与 server.py 的 BIT_KEYS、code.py 的 B0/B1/DPAD_BITS 一致 */
+const BUTTON_BITS = {
+  GP_Y:0, GP_B:1, GP_A:2, GP_X:3,
+  GP_L:4, GP_R:5, GP_ZL:6, GP_ZR:7,
+  GP_Minus:8, GP_Plus:9, GP_LS:10, GP_RS:11, GP_Home:12,
+  GP_Up:13, GP_Down:14, GP_Left:15, GP_Right:16,
+};
+
+/* ================= 动作定义 =================
+   cond: 每帧计算，返回 {hit:bool, dbg:string}                        */
+const ACTIONS = [
+  /* ===== A 层 · 移动与视角（默认开） ===== */
+  { id:"walk",   group:"A · 移动与视角", name:"原地踏步", sub:"走路前进（左摇杆↑）", axis:"ly", axisVal:()=>-1*DIR.walk, hold:true, on:true,
+    enter:2, exit:4, icon:"walk",
+    cond:(f,s)=>({hit: f.ankleLift > 0.04*f.torso*s.sens && f.kneeLift < 0.15*f.torso*s.sens,
+                  dbg:`踏步 ${f.ankleLift.toFixed(0)} 膝 ${f.kneeLift.toFixed(0)}`}) },
+  { id:"run",    group:"A · 移动与视角", name:"快速高抬腿", sub:"冲刺跑（按住B）", key:"GP_B", hold:true, on:true,
+    enter:2, exit:4, icon:"run",
+    cond:(f,s)=>({hit: f.kneeLift > 0.15*f.torso*s.sens,
+                  dbg:`膝上抬 ${f.kneeLift.toFixed(0)} / ${(0.15*f.torso*s.sens).toFixed(0)}`}) },
+  { id:"jump",   group:"A · 移动与视角", name:"跳", sub:"跳跃（X）", key:"GP_X", hold:false, on:true,
+    enter:1, exit:1, cooldown:800, icon:"jump",
+    cond:(f,s)=>({hit: f.feetAir > 0.12*f.torso*s.sens,
+                  dbg:`离地 ${f.feetAir.toFixed(0)} / ${(0.12*f.torso*s.sens).toFixed(0)}`}) },
+  { id:"squat",  group:"A · 移动与视角", name:"下蹲", sub:"蹲下潜行（按住L3）", key:"GP_LS", hold:true, on:true,
+    enter:2, exit:4, icon:"squat",
+    cond:(f,s)=>({hit: f.hipFastY > f.hipSlowY + 0.10*f.torso*s.sens,
+                  dbg:`下移 ${(f.hipFastY-f.hipSlowY).toFixed(0)} / ${(0.10*f.torso*s.sens).toFixed(0)}`}) },
+  { id:"headTurn", group:"A · 移动与视角", name:"左右转头", sub:"左右转视角（右摇杆X）", axis:"rx", axisVal:(f)=>Math.max(-1,Math.min(1,f.headOff*4))*DIR.head, hold:true, on:true,
+    enter:2, exit:3, icon:"head",
+    cond:(f,s)=>({hit: Math.abs(f.headOff) > 0.06*s.sens,
+                  dbg:`头偏 ${(f.headOff*100).toFixed(0)}%`}) },
+  { id:"headPitch", group:"A · 移动与视角", name:"抬头低头", sub:"上下看（右摇杆Y）", axis:"ry", axisVal:(f)=>-Math.max(-1,Math.min(1,f.headPitch*4))*DIR.pitch, hold:true, on:false,
+    enter:2, exit:3, icon:"pitch",
+    cond:(f,s)=>({hit: Math.abs(f.headPitch) > 0.06*s.sens,
+                  dbg:`俯仰 ${(f.headPitch*100).toFixed(0)}%`}) },
+
+  /* ===== B 层 · 战斗（默认开） ===== */
+  { id:"slashR", group:"B · 战斗", name:"右臂挥砍", sub:"挥剑攻击（Y）", key:"GP_Y", hold:false, on:true,
+    enter:1, exit:1, cooldown:550, icon:"slash",
+    cond:(f,s)=>({hit: f.wrRSlowY!=null && f.wrRFastY!=null
+                       && f.wrRSlowY < f.shY - 0.05*f.torso
+                       && f.wrRFastY > f.shY + 0.10*f.torso,
+                  dbg:`腕 ${f.wrRFastY!=null? (f.wrRFastY-f.shY).toFixed(0):'–'}`}) },
+  { id:"armsUp", group:"B · 战斗", name:"双手举过头", sub:"用符文·炸弹扔/引爆（L）", key:"GP_L", hold:false, on:true,
+    enter:1, exit:1, cooldown:800, icon:"arms",
+    cond:(f,s)=>({hit: !!(f.wrRelL!=null && f.wrRelR!=null && f.wrRelL > 0.28 && f.wrRelR > 0.28),
+                  dbg:`L${f.wrRelL!=null?(f.wrRelL*100).toFixed(0):'–'} R${f.wrRelR!=null?(f.wrRelR*100).toFixed(0):'–'}`}) },
+  { id:"guard",  group:"B · 战斗", name:"双臂胸前合拢", sub:"举盾·锁定（按住ZL）", key:"GP_ZL", hold:true, on:true,
+    enter:2, exit:3, icon:"guard",
+    cond:(f,s)=>({hit: !!(f.wrSpanX!=null && f.wrSpanX < 0.55 && f.wrRelL!=null && f.wrRelR!=null
+                          && f.wrRelL > -0.40 && f.wrRelL < 0.18 && f.wrRelR > -0.40 && f.wrRelR < 0.18),
+                  dbg:`合掌 ${f.wrSpanX!=null?(f.wrSpanX*100).toFixed(0):'–'}`}) },
+  { id:"whistle", group:"B · 战斗", name:"手到嘴边", sub:"吹口哨召马（十字↓）", key:"GP_Down", hold:false, on:false,
+    enter:2, exit:2, cooldown:1300, icon:"whistle",
+    cond:(f,s)=>{ const a = f.wrNoseL??9, b = f.wrNoseR??9;
+                  return {hit: Math.min(a,b) < 0.28 && Math.max(a,b) > 0.42,
+                          dbg:`近手 ${Math.min(a,b).toFixed(2)}`}; } },
+  { id:"ability", group:"B · 战斗", name:"单臂高举", sub:"投掷武器（R）", key:"GP_R", hold:false, on:true,
+    enter:1, exit:1, cooldown:900, icon:"ability",
+    cond:(f,s)=>({hit: !!(f.wrRelL!=null && f.wrRelR!=null
+                          && ((f.wrRelL > 0.30 && f.wrRelR < 0.0) || (f.wrRelR > 0.30 && f.wrRelL < 0.0))),
+                  dbg:`L${f.wrRelL!=null?(f.wrRelL*100).toFixed(0):'–'} R${f.wrRelR!=null?(f.wrRelR*100).toFixed(0):'–'}`}) },
+  { id:"stepR",  group:"B · 战斗", name:"右后撤步", sub:"互动·对话（A）", key:"GP_A", hold:false, on:true,
+    enter:2, exit:2, cooldown:900, icon:"right",
+    cond:(f,s)=>({hit: (f.ankleRUx - f.bodyUx) > 0.5*f.torso*s.sens,
+                  dbg:`右脚偏 ${(f.ankleRUx-f.bodyUx).toFixed(0)} / ${(0.5*f.torso*s.sens).toFixed(0)}`}) },
+
+  /* ===== C 层 · 扩展（默认关，实测稳定后再开） ===== */
+  { id:"crossL", group:"C · 扩展（低区分度，默认关）", name:"左跨步", sub:"切换武器（十字←）", key:"GP_Left", hold:false, on:false,
+    enter:2, exit:2, cooldown:900, icon:"left",
+    cond:(f,s)=>({hit: f.bodyUxFast < f.bodyUxSlow - 0.35*f.torso*s.sens,
+                  dbg:`左移 ${(f.bodyUxSlow-f.bodyUxFast).toFixed(0)}`}) },
+  { id:"crossR", group:"C · 扩展（低区分度，默认关）", name:"右跨步", sub:"切换盾牌（十字→）", key:"GP_Right", hold:false, on:false,
+    enter:2, exit:2, cooldown:900, icon:"right",
+    cond:(f,s)=>({hit: f.bodyUxFast > f.bodyUxSlow + 0.35*f.torso*s.sens,
+                  dbg:`右移 ${(f.bodyUxFast-f.bodyUxSlow).toFixed(0)}`}) },
+  { id:"sideJump", group:"C · 扩展（低区分度，默认关）", name:"快速侧跳", sub:"侧跳闪避（自动 ZL+方向+X）", hold:false, on:false,
+    enter:1, exit:1, cooldown:1200, icon:"dodge",
+    combo:(f)=>["GP_ZL", (f && f.bodyVelX > 0) ? "GP_Right" : "GP_Left", "GP_X"],
+    cond:(f,s)=>({hit: Math.abs(f.bodyVelX) > 0.28*f.torso*s.sens && f.feetAir > 0.06*f.torso*s.sens,
+                  dbg:`横移 ${f.bodyVelX.toFixed(0)} 离地 ${f.feetAir.toFixed(0)}`}) },
+  { id:"stepL",  group:"C · 扩展（低区分度，默认关）", name:"左后撤步", sub:"后跳闪避（ZL+↓+X）", hold:false, on:false,
+    enter:2, exit:2, cooldown:1200, icon:"left",
+    combo:["GP_ZL","GP_Down","GP_X"],
+    cond:(f,s)=>({hit: (f.ankleLUx - f.bodyUx) < -0.5*f.torso*s.sens,
+                  dbg:`左脚偏 ${(f.bodyUx-f.ankleLUx).toFixed(0)}`}) },
+  { id:"legL",   group:"C · 扩展（低区分度，默认关）", name:"抬左腿", sub:"射箭·拉弓（按住ZR）", key:"GP_ZR", hold:true, on:false,
+    enter:2, exit:2, icon:"leg",
+    cond:(f,s)=>({hit: f.kneeLY < f.hipY + 0.15*f.torso*s.sens && f.kneeRY > f.hipY + 0.30*f.torso*s.sens,
+                  dbg:`L${(f.hipY-f.kneeLY).toFixed(0)} R${(f.hipY-f.kneeRY).toFixed(0)}`}) },
+  { id:"frameEyes", group:"C · 扩展（低区分度，默认关）", name:"双手框眼", sub:"望远镜（按住R3）", key:"GP_RS", hold:true, on:false,
+    enter:2, exit:3, icon:"binocular",
+    cond:(f,s)=>({hit: !!(f.wrNoseL!=null && f.wrNoseR!=null && f.wrNoseL < 0.32 && f.wrNoseR < 0.32),
+                  dbg:`L${f.wrNoseL!=null?f.wrNoseL.toFixed(2):'–'} R${f.wrNoseR!=null?f.wrNoseR.toFixed(2):'–'}`}) },
+
+  /* ===== 赛车预设（马里奥赛车 8 Deluxe） ===== */
+  { id:"steer", preset:"racing", group:"赛车 · 转向", name:"身体左右倾斜", sub:"打方向盘（左摇杆左右）", axis:"lx", axisVal:(f)=>Math.max(-1,Math.min(1,f.bodyOff*3))*DIR.steer, hold:true, on:true,
+    enter:1, exit:3, icon:"steer",
+    cond:(f,s)=>({hit: Math.abs(f.bodyOff) > 0.08*s.sens,
+                  dbg:`倾 ${(f.bodyOff*100).toFixed(0)}%`}) },
+  { id:"throttle", preset:"racing", group:"赛车 · 转向", name:"原地踏步", sub:"踩油门（按住A）", key:"GP_A", hold:true, on:true,
+    enter:1, exit:4, icon:"walk",
+    cond:(f,s)=>({hit: f.ankleLift > 0.04*f.torso*s.sens,
+                  dbg:`踏步 ${f.ankleLift.toFixed(0)}`}) },
+  { id:"drift", preset:"racing", group:"赛车 · 漂移与道具", name:"下蹲", sub:"漂移（按住R）", key:"GP_R", hold:true, on:true,
+    enter:2, exit:4, icon:"squat",
+    cond:(f,s)=>({hit: f.hipFastY > f.hipSlowY + 0.10*f.torso*s.sens,
+                  dbg:`下移 ${(f.hipFastY-f.hipSlowY).toFixed(0)}`}) },
+  { id:"item", preset:"racing", group:"赛车 · 漂移与道具", name:"双手举过头", sub:"使用道具（L）", key:"GP_L", hold:false, on:true,
+    enter:1, exit:1, cooldown:800, icon:"arms",
+    cond:(f,s)=>({hit: !!(f.wrRelL!=null && f.wrRelR!=null && f.wrRelL > 0.25 && f.wrRelR > 0.25),
+                  dbg:`L${f.wrRelL!=null?(f.wrRelL*100).toFixed(0):'–'} R${f.wrRelR!=null?(f.wrRelR*100).toFixed(0):'–'}`}) },
+  { id:"brake", preset:"racing", group:"赛车 · 漂移与道具", name:"后撤步", sub:"刹车（按住B）", key:"GP_B", hold:true, on:false,
+    enter:2, exit:3, icon:"left",
+    cond:(f,s)=>({hit: (f.ankleLUx - f.bodyUx) < -0.5*f.torso*s.sens || (f.ankleRUx - f.bodyUx) > 0.5*f.torso*s.sens,
+                  dbg:`撤步`}) },
+];
+let currentPreset = "zelda";   // 游戏预设：zelda / racing
+const ACTION_SM = {};   // id -> {enterCnt, exitCnt, active, coolUntil, lastDbg, lastHit}
+
+/* ================= 图标 ================= */
+const ICONS = {
+  run:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M8 5h8M12 5v3"/><path d="M7 20c0-3 2-4 5-4s5 1 5 4"/><path d="M9 8l3 6 3-6"/></svg>`,
+  jump:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M12 20v-4"/><path d="M12 16c-2 0-3-1.5-3-3.5S10 9 12 9s3 1.5 3 3.5"/><path d="M6 4l2 3M18 4l-2 3M12 2v3"/></svg>`,
+  squat:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="2.4"/><path d="M12 9.5v4"/><path d="M8 21l4-7.5L16 21"/></svg>`,
+  left:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>`,
+  right:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>`,
+  leg:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M9 4v9"/><path d="M9 13l1 8"/><path d="M15 4v6"/><path d="M15 10l3 4"/></svg>`,
+  walk:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="13" cy="4.5" r="1.8"/><path d="M13 6.5v6"/><path d="M13 12.5l-3 4-2 4"/><path d="M13 12.5l3 3.5 1 5"/><path d="M13 8l-4 2M13 8l4 1"/></svg>`,
+  head:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="10" r="4"/><path d="M12 10h5"/><path d="M6 18c1.5-2 3.5-3 6-3s4.5 1 6 3"/><path d="M17 5l2 2-2 2"/></svg>`,
+  arms:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1.8"/><path d="M12 7v8"/><path d="M12 9L6 3M12 9l6-6"/><path d="M9 21l3-6 3 6"/></svg>`,
+  slash:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M5 4l14 11"/><path d="M19 15l-3 4-3-3"/><path d="M4 20h6"/></svg>`,
+  guard:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>`,
+  whistle:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="14" r="4"/><path d="M12 14h9M17 11v6"/></svg>`,
+  ability:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="4" r="2"/><path d="M12 6v8"/><path d="M12 8l5-4"/><path d="M7 21l5-7 5 7"/></svg>`,
+  dodge:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><path d="M4 12h13"/><path d="M13 7l5 5-5 5"/><path d="M3 6v12"/></svg>`,
+  binocular:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="15" r="3.2"/><circle cx="17" cy="15" r="3.2"/><path d="M9 12h6M6 9l2-5M18 9l-2-5"/></svg>`,
+  steer:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 4v6M4 12h6M20 12h-6"/></svg>`,
+  pitch:`<svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="11" r="4"/><path d="M12 11l4-3"/><path d="M12 2v3M12 20v2"/></svg>`,
+};
+
+/* ================= 全局状态 ================= */
+const $ = id => document.getElementById(id);
+const state = {
+  running:false, calibrating:false, calibFrames:0, mode:"motion",
+  facing:"user", ws:null, wsOk:false, espOk:false, latency:null,
+  sens:1.0, wakeLock:null,
+  editTarget:null,
+  owner:false, seq:0, motionPaused:false,
+};
+const video = $("video"), overlay = $("overlay");
+let detector = null, stream = null, rafId = 0;
+
+/* 快慢 EMA 特征缓冲 */
+const ema = { hipSlow:null, hipFast:null, feetSlow:null, feetFast:null, bodySlow:null, bodyFast:null,
+              headSlow:null, pitchSlow:null, wrRF:null, wrRS:null, wrLF:null, wrLS:null };
+
+function toast(msg, ms=1800){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove("show"), ms);
+}
+function logEvent(line){
+  const el = $("eventlog");
+  const ts = new Date().toTimeString().slice(0,8);
+  el.textContent = `[${ts}] ${line}\n` + el.textContent.split("\n").slice(0,40).join("\n");
+}
+
+/* ================= 动作卡片 UI ================= */
+function renderActions(){
+  const box = $("actionList"); box.innerHTML = "";
+  let lastGroup = "";
+  for(const a of ACTIONS){
+    if((a.preset||"zelda") !== currentPreset) continue;
+    if(a.group && a.group !== lastGroup){
+      const h = document.createElement("div");
+      h.className = "group-h";
+      h.textContent = a.group;
+      box.appendChild(h);
+      lastGroup = a.group;
+    }
+    const row = document.createElement("div");
+    row.className = "act"; row.id = "act-"+a.id;
+    const keyTxt = a.axis ? "摇杆（自动）" : (a.combo ? "组合键（自动）" : (KEY_LABEL[a.key]||a.key));
+    const editBtn = (a.axis || a.combo) ? "" : `<button class="edit-btn" data-edit="${a.id}" title="改按键">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg>
+      </button>`;
+    row.innerHTML = `
+      <div class="ico">${ICONS[a.icon]||ICONS.leg}</div>
+      <div class="meta">
+        <div class="n">${a.name}</div>
+        <div class="s">${a.sub? a.sub+" · ":""}按键 <span class="k" id="key-${a.id}">${keyTxt}</span></div>
+      </div>
+      <div class="live" id="live-${a.id}">–</div>
+      ${editBtn}
+      <label class="toggle"><input type="checkbox" data-toggle="${a.id}" ${a.on?"checked":""}><span class="tk"></span></label>`;
+    box.appendChild(row);
+  }
+  box.querySelectorAll("[data-toggle]").forEach(el=>{
+    el.addEventListener("change", e=>{
+      const a = ACTIONS.find(x=>x.id===e.target.dataset.toggle);
+      const was = a.on; a.on = e.target.checked;
+      if(!a.on && was){
+        releaseKey(a);
+        if(ACTION_SM[a.id]) delete ACTION_SM[a.id];
+        if(a.axis) motionStick[a.axis] = 0;
+        sendFullState(true);
+      }
+      logEvent(`动作 ${a.name} ${a.on?"开启":"关闭"}`);
+    });
+  });
+  box.querySelectorAll("[data-edit]").forEach(el=>{
+    el.addEventListener("click", ()=>openSheet(ACTIONS.find(x=>x.id===el.dataset.edit)));
+  });
+}
+function openSheet(a){
+  state.editTarget = a;
+  $("sheetSub").textContent = `「${a.name}」映射到哪个按键？`;
+  const kb = $("sheetKeys"); kb.innerHTML = "";
+  for(const k of KEY_LIST){
+    const b = document.createElement("button");
+    b.textContent = KEY_LABEL[k]||k;
+    if(k===a.key) b.classList.add("sel");
+    b.addEventListener("click", ()=>{
+      releaseKey(a);
+      delete ACTION_SM[a.id];
+      a.key = k;
+      sendFullState(true);
+      $("key-"+a.id).textContent = KEY_LABEL[k]||k;
+      closeSheet(); toast(`${a.name} → ${KEY_LABEL[k]||k}`);
+    });
+    kb.appendChild(b);
+  }
+  $("sheet").classList.add("open");
+}
+function closeSheet(){ $("sheet").classList.remove("open"); }
+$("sheetMask").addEventListener("click", closeSheet);
+$("sensSlider").addEventListener("input", e=>{
+  state.sens = parseFloat(e.target.value);
+  $("sensLabel").textContent = `灵敏度 ${state.sens.toFixed(2)}`;
+});
+
+/* ================= 控制协议：完整状态 + 单主控 =================
+   同源连接：http 页面走 ws://，https 页面走 wss://，端口与页面一致。
+   只发完整手柄状态（按键位掩码 + 四轴），变化时立即发，稳定时每 100ms 刷新。
+   刷新只证明「网页仍在控制」，不等于按住续期；板端 1 秒无新状态自行中和。 */
+const WS_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
+const STATE_REFRESH_MS = 100, POSE_TTL_MS = 500;
+const controlButtons = new Set();
+let epoch = null, injectReady = false, pageActive = true;
+let authToken = "";
+try{ authToken = localStorage.getItem("mgAuthToken") || ""; }catch(_){}   // 30 天免登录
+let loopGeneration = 0, lastVideoTime = -1, lastPoseAt = -Infinity, inferenceBusy = false;
+let videoFrameId = null, reconnectTimer = null;
+
+function canControl(){
+  return pageActive && !document.hidden && state.ws?.readyState === 1 &&
+    state.owner && epoch !== null && (state.espOk || injectReady);
+}
+let lastStateKey = "", lastStateAt = 0;
+
+function buttonBit(key){
+  const canonical = KEY_ALIAS[key] || key;
+  return Object.prototype.hasOwnProperty.call(BUTTON_BITS, canonical) ? BUTTON_BITS[canonical] : null;
+}
+function currentButtonMask(){
+  let mask = 0;
+  for(const key of controlButtons){
+    const bit = buttonBit(key);
+    if(bit !== null) mask |= (1 << bit);
+  }
+  return mask;
+}
+function sendFullState(force=false){
+  if(!state.ws || state.ws.readyState !== 1 || !state.owner || epoch === null || (!state.espOk && !injectReady)) return;
+  if(state.ws.bufferedAmount > 512){
+    clearLocalControls();
+    state.ws.close(4000, "input backlog");
+    return;
+  }
+  if(!pageActive || document.hidden){
+    clearLocalControls();
+  }else if(state.mode === "motion" && performance.now() - lastPoseAt > POSE_TTL_MS){
+    clearLocalControls();
+  }
+  const mask = currentButtonMask();
+  const ax = controlAxes;
+  const snap = `${mask}|${ax.lx.toFixed(2)}|${ax.ly.toFixed(2)}|${ax.rx.toFixed(2)}|${ax.ry.toFixed(2)}`;
+  const now = performance.now();
+  if(!force && snap === lastStateKey && now - lastStateAt < STATE_REFRESH_MS) return;
+  lastStateKey = snap; lastStateAt = now;
+  state.ws.send(JSON.stringify({
+    type:"state", epoch, seq:++state.seq, buttons:mask,
+    lx:+ax.lx.toFixed(2), ly:+ax.ly.toFixed(2),
+    rx:+ax.rx.toFixed(2), ry:+ax.ry.toFixed(2),
+  }));
+}
+setInterval(()=>{ if(canControl()) sendFullState(false); }, STATE_REFRESH_MS);
+
+function setOwnerUI(){
+  const el = $("chipControl");
+  if(!el) return;
+  if(!state.wsOk || epoch === null){ el.style.display = "none"; return; }
+  el.style.display = "";
+  el.textContent = state.owner ? "控制中" : "旁观 · 点此接管";
+  el.classList.toggle("take", !state.owner);
+}
+$("chipControl").addEventListener("click", ()=>{
+  if(state.wsOk && !state.owner && state.ws && state.ws.readyState === 1)
+    state.ws.send(JSON.stringify({type:"hello", role:"web", takeover:true}));
+});
+
+function hello(){
+  if(state.ws?.readyState === 1) state.ws.send(JSON.stringify({type:"hello", role:"web", token:authToken}));
+}
+function showPair(show){
+  $("pairForm").hidden = !show;
+  $("pairForm").style.display = show ? "" : "none";
+}
+$("pairForm").addEventListener("submit", e=>{
+  e.preventDefault();
+  if(state.ws?.readyState !== 1) return;
+  state.ws.send(JSON.stringify({type:"login", password:$("pairCode").value}));
+  $("pairCode").value = "";
+});
+function wsConnect(){
+  if(!pageActive || state.ws?.readyState < 2) return;
+  let ws;
+  try{ ws = state.ws = new WebSocket(WS_URL); }catch(e){ return; }
+  ws.onopen = ()=>{
+    if(state.ws !== ws) return;
+    state.wsOk = true; $("dotServer").className = "dot on";
+    hello();
+    logEvent("服务已连接");
+    if(!state.pingTimer) state.pingTimer = setInterval(()=>{
+      if(state.ws && state.ws.readyState===1)
+        state.ws.send(JSON.stringify({type:"ping", t:performance.now()}));
+    }, 2000);
+  };
+  ws.onmessage = ev=>{
+    if(state.ws !== ws) return;
+    let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+    if(m.type==="login_required"){
+      showPair(true);
+      $("pairCode").placeholder = authToken ? "登录已过期，请重新输入密码" : "输入登录密码";
+    }else if(m.type==="login_ok"){
+      authToken = m.token;
+      try{ localStorage.setItem("mgAuthToken", authToken); }catch(_){}
+      showPair(false);
+      hello();
+    }else if(m.type==="control"){
+      if(epoch !== null && m.epoch < epoch) return;
+      const was = state.owner, changed = epoch !== m.epoch;
+      epoch = m.epoch;
+      state.owner = !!m.owner;
+      injectReady = !!m.inject;
+      showPair(false); setEsp(m.esp32); setClients(m.clients); setOwnerUI();
+      if(changed){
+        resetMotionSession();
+        state.seq = 0;
+        sendFullState(true);
+      }
+      if(state.owner && !was) logEvent("已取得控制权");
+      if(!state.owner && was) logEvent("控制权已切给其他页面，本页旁观");
+    }
+    else if(m.type==="pong"){
+      state.latency = Math.round(performance.now() - m.t);
+      $("chipLatency").textContent = state.latency + " ms";
+    }
+  };
+  ws.onclose = ()=>{
+    if(state.ws !== ws) return;
+    state.ws = null;
+    state.wsOk = state.owner = injectReady = false;
+    $("dotServer").className = "dot off"; setEsp(false); setClients(0);
+    epoch = null;
+    resetMotionSession(); setOwnerUI();
+    if(pageActive){
+      logEvent("服务断开，2s 后重连");
+      reconnectTimer = setTimeout(wsConnect, 2000);
+    }
+  };
+}
+function setEsp(v){ state.espOk = v; $("dotEsp").className = "dot " + (v?"on":"off"); }
+/* 在线网页数：两个以上页面时显示，控制权由 chipControl 接管 */
+function setClients(n){
+  const el = $("chipClients");
+  if(!el) return;
+  if(n >= 2){ el.style.display = ""; el.textContent = `${n} 台在线`; }
+  else { el.style.display = "none"; }
+}
+
+/* ================= 体感/虚拟手柄共用四轴 ================= */
+const DIR = { walk: 1, head: 1, pitch: 1, steer: 1 };   // 方向系数，调试面板可一键反转
+const controlAxes = { lx:0, ly:0, rx:0, ry:0 };
+const motionStick = controlAxes;   // 兼容原动作引擎引用
+const padAxes = controlAxes;       // 兼容原虚拟手柄引用
+function motionStickSend(force){ sendFullState(force); }
+
+/* ================= 按键发送（完整状态，不再逐条续期） ================= */
+const PULSE_MS = 140;
+const pulseTimers = new Map(), motionSources = new Map(), virtualPointers = new Map();
+function syncButtons(){
+  controlButtons.clear();
+  for(const keys of motionSources.values()) for(const k of keys) controlButtons.add(k);
+  for(const {key} of virtualPointers.values()) controlButtons.add(key);
+  if(injectReady) for(const d of stick.dirs) controlButtons.add(STICK_DIR_KEY[d]);
+}
+function syncMotionButtons(){ syncButtons(); }
+function pressKey(a){
+  if(a.axis || motionSources.has(a.id)) return;
+  const keys = a.combo ? (typeof a.combo === "function" ? a.combo(state.lastF) : a.combo) : [a.key];
+  motionSources.set(a.id, keys);
+  syncMotionButtons();
+  if(!a.hold) pulseTimers.set(a.id, setTimeout(()=>{
+    releaseKey(a); sendFullState(true);
+  }, PULSE_MS));
+  logEvent(`${a.name} ▼ ${keys.map(k=>KEY_LABEL[k]||k).join("+")}`);
+}
+function releaseKey(a){
+  clearTimeout(pulseTimers.get(a.id)); pulseTimers.delete(a.id);
+  if(motionSources.delete(a.id)) syncMotionButtons();
+}
+function clearLocalControls(){
+  controlButtons.clear();
+  controlAxes.lx = controlAxes.ly = controlAxes.rx = controlAxes.ry = 0;
+  motionSources.clear();
+  for(const timer of pulseTimers.values()) clearTimeout(timer);
+  pulseTimers.clear();
+  virtualPointers.clear();
+  stick.pid = stickR.pid = null;
+  stick.dirs.clear();
+  syncButtons();
+  cap.style.transform = capR.style.transform = "translate(-50%,-50%)";
+  for(const sm of Object.values(ACTION_SM)){
+    sm.active = false; sm.enter = 0; sm.exit = 0;
+  }
+  document.querySelectorAll(".press").forEach(el=>el.classList.remove("press"));
+}
+function releaseAll(){
+  clearLocalControls();
+  sendFullState(true);                      // 立即发全松开+四轴回中
+}
+/* 识别不到人/校准/切后台：只中和一次，避免每帧刷屏 */
+function motionPause(){
+  if(state.mode !== "motion" || state.motionPaused) return;
+  state.motionPaused = true;
+  releaseAll();
+}
+function motionResume(){ state.motionPaused = false; }
+$("allUpBtn").addEventListener("click", ()=>{ resetMotionSession(); sendFullState(true); toast("已清空本页输入"); });
+document.addEventListener("visibilitychange", ()=>{
+  resetMotionSession();
+  sendFullState(true);
+});
+window.addEventListener("pagehide", ()=>{
+  pageActive = false;
+  clearTimeout(reconnectTimer);
+  resetMotionSession();
+  sendFullState(true);
+  state.ws?.close();
+});
+window.addEventListener("pageshow", ()=>{
+  if(pageActive) return;
+  pageActive = true;
+  wsConnect();
+  resetMotionSession();
+});
+
+/* ================= 姿态检测 ================= */
+const KP = i => `kp${i}`;   // MoveNet 17 点，COCO 顺序
+function initModel(){
+  return poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, {
+    modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+    modelUrl: "lib/movenet-lightning/model.json",
+  }).then(d=>{ detector = d; return d; });
+}
+
+async function startCamera(){
+  stopStream();
+  stream = await navigator.mediaDevices.getUserMedia({
+    video:{ facingMode: state.facing, width:{ideal:640}, height:{ideal:480} },
+    audio:false,
+  });
+  video.srcObject = stream;
+  await video.play();
+  await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadeddata = res; });
+  const vw = video.videoWidth, vh = video.videoHeight;
+  overlay.width = vw; overlay.height = vh;
+  $("videoBox").style.aspectRatio = `${vw}/${vh}`;
+  try{
+    state.wakeLock = await navigator.wakeLock?.request?.("screen");
+  }catch(e){}
+}
+function stopStream(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+}
+$("flipBtn").addEventListener("click", async ()=>{
+  if(state.running){ toast("请先停止检测"); return; }
+  state.facing = state.facing==="user" ? "environment" : "user";
+  try{ await startCamera(); }catch(e){ toast("切换摄像头失败"); }
+});
+$("recalBtn").addEventListener("click", ()=>{
+  resetMotionSession();
+  sendFullState(true);
+  Object.keys(ema).forEach(k=>ema[k]=null);
+  state.calibrating = true; state.calibFrames = 0;
+  $("calibBadge").style.display = "";
+  toast("重新校准中，请自然站立 2 秒");
+});
+
+$("startBtn").addEventListener("click", async ()=>{
+  $("startBtn").disabled = true; $("startBtn").textContent = "加载模型…";
+  try{
+    if(!detector) await initModel();
+    await startCamera();
+    $("cover").style.display = "none";
+    $("runBtn").disabled = false;
+    toast("就绪，点击「开始检测」");
+  }catch(e){
+    console.error(e);
+    toast("失败：" + (e.message||e.name||e) , 3000);
+  }
+  $("startBtn").disabled = false; $("startBtn").textContent = "启动摄像头";
+});
+
+$("runBtn").addEventListener("click", ()=>{
+  if(state.running){ stopLoop(); $("runBtn").textContent = "开始检测"; }
+  else{
+    Object.keys(ema).forEach(k=>ema[k]=null);
+    state.calibrating = true; state.calibFrames = 0;
+    $("calibBadge").style.display = "";
+    startLoop(); $("runBtn").textContent = "停止检测";
+  }
+});
+
+function activeLoop(generation){
+  return generation === loopGeneration && state.running && state.mode === "motion" && pageActive && !document.hidden;
+}
+function scheduleFrame(generation){
+  if(!activeLoop(generation)) return;
+  const tick = (at, meta)=>{
+    if(!activeLoop(generation)) return;
+    videoFrameId = null; rafId = 0;
+    const mediaTime = meta?.mediaTime ?? video.currentTime;
+    if(!inferenceBusy && video.readyState >= 2 && !video.paused && mediaTime > lastVideoTime){
+      lastVideoTime = mediaTime;
+      inferenceBusy = true;
+      processFrame(generation, at).catch(e=>{
+        if(activeLoop(generation)) motionPause();
+        console.warn("姿态推理失败", e);
+      }).finally(()=>{ inferenceBusy = false; });
+    }
+    scheduleFrame(generation);
+  };
+  if(typeof video.requestVideoFrameCallback === "function" && typeof video.cancelVideoFrameCallback === "function")
+    videoFrameId = video.requestVideoFrameCallback(tick);
+  else rafId = requestAnimationFrame(tick);
+}
+function resetMotionSession(){
+  ++loopGeneration;
+  cancelAnimationFrame(rafId); rafId = 0;
+  if(videoFrameId !== null) video.cancelVideoFrameCallback(videoFrameId);
+  videoFrameId = null;
+  lastPoseAt = -Infinity;
+  lastVideoTime = video.currentTime || 0;
+  clearLocalControls();
+  scheduleFrame(loopGeneration);
+}
+function startLoop(){
+  state.running = true;
+  resetMotionSession();
+}
+function stopLoop(){
+  state.running = false;
+  resetMotionSession();
+  sendFullState(true);
+}
+
+/* ---------- 每帧：特征提取 → 动作判定 → 事件 ---------- */
+let lastFpsT = 0, fpsCnt = 0, fpsVal = 0;
+async function processFrame(generation, frameAt){
+  if(!detector) return;
+  const poses = await detector.estimatePoses(video, {maxPoses:1, flipHorizontal:false});
+  const now = performance.now();
+  if(!activeLoop(generation)) return;
+  if(now - frameAt > POSE_TTL_MS){ motionPause(); return; }
+  fpsCnt++;
+  if(now - lastFpsT > 1000){
+    fpsVal = fpsCnt; fpsCnt = 0; lastFpsT = now;
+    $("fpsBadge").textContent = fpsVal + " fps";
+  }
+  const pose = poses && poses[0];
+  if(!pose){ motionPause(); drawOverlay(null); return; }
+
+  const W = video.videoWidth;
+  const k = pose.keypoints;
+  const conf = 0.3;
+  const ok = i => k[i] && k[i].score > conf;
+  // 用户视角 x（画面已镜像显示）：ux = W - x
+  const ux = p => W - p.x;
+  const mid = (a,b) => ({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
+  const sh = ok(5)&&ok(6) ? mid(k[5],k[6]) : null;
+  const hp = ok(11)&&ok(12) ? mid(k[11],k[12]) : null;
+  const d2 = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+  const torso = (sh&&hp) ? d2(sh,hp) : null;
+  if(!torso || torso < 10){ motionPause(); drawOverlay(pose); return; }
+
+  const kneeL = ok(13)? k[13]:null, kneeR = ok(14)? k[14]:null;
+  const ankL  = ok(15)? k[15]:null, ankR  = ok(16)? k[16]:null;
+  const nose  = ok(0)? k[0]:null;                              // 鼻子：转头视角基准
+  const wrL   = ok(9)? k[9]:null, wrR = ok(10)? k[10]:null;    // 手腕：举手判定
+
+  const hipY = hp.y;
+  const feetY = (ankL&&ankR) ? (ankL.y+ankR.y)/2 : (ankL||ankR)?.y ?? null;
+  const bodyUx = (ankL&&ankR) ? (ux(ankL)+ux(ankR))/2 : null;
+  if(feetY===null || bodyUx===null){ motionPause(); drawOverlay(pose); return; }
+
+  // EMA（快=跟随动作，慢=站立基线）
+  const A_FAST=0.4, A_SLOW=0.02;
+  ema.hipFast = ema.hipFast==null? hipY : ema.hipFast*(1-A_FAST)+hipY*A_FAST;
+  ema.hipSlow = ema.hipSlow==null? hipY : ema.hipSlow*(1-A_SLOW)+hipY*A_SLOW;
+  ema.feetFast = ema.feetFast==null? feetY : ema.feetFast*(1-A_FAST)+feetY*A_FAST;
+  ema.feetSlow = ema.feetSlow==null? feetY : ema.feetSlow*(1-A_SLOW)+feetY*A_SLOW;
+  ema.bodyFast = ema.bodyFast==null? bodyUx : ema.bodyFast*(1-A_FAST)+bodyUx*A_FAST;
+  // 重心慢线：偏移大时冻结（持续倾斜才能持续转向，否则 2 秒后自动回正）
+  ema.bodySlow = ema.bodySlow==null? bodyUx : ema.bodySlow;
+  if(Math.abs(bodyUx - ema.bodySlow) < 0.06*torso) ema.bodySlow = ema.bodySlow*0.98 + bodyUx*0.02;
+  const bodyOff = (bodyUx - ema.bodySlow) / torso;   // >0 = 重心偏向用户右侧（赛车转向用）
+
+  // 头部偏转（用户视角，相对肩中心；慢 EMA 作站立基线，抵消每人头部自然偏移）
+  let headOffRaw = 0;
+  const headPt = nose || (ok(1) && ok(2) ? { x:(k[1].x+k[2].x)/2, y:(k[1].y+k[2].y)/2 } : null);  // 鼻子丢了用双眼中点
+  if(headPt && ok(5) && ok(6)){
+    const shUx = (ux(k[5]) + ux(k[6])) / 2;
+    headOffRaw = (ux(headPt) - shUx) / torso;
+  }
+  ema.headSlow = ema.headSlow==null ? headOffRaw : ema.headSlow;
+  if(Math.abs(headOffRaw - ema.headSlow) < 0.05)             // 只在接近基线时更新（转头时冻结基线，视角才能持续转）
+    ema.headSlow = ema.headSlow*0.995 + headOffRaw*0.005;
+  const headOff = headOffRaw - ema.headSlow;
+
+  /* ---- 头部俯仰（抬/低头）：鼻子相对肩的 Y 偏移，慢 EMA 基线 ---- */
+  let pitchRaw = 0;
+  if(headPt && sh) pitchRaw = (sh.y - headPt.y) / torso;      // 值大=抬头看上方
+  ema.pitchSlow = ema.pitchSlow==null ? pitchRaw : ema.pitchSlow;
+  if(Math.abs(pitchRaw - ema.pitchSlow) < 0.06)
+    ema.pitchSlow = ema.pitchSlow*0.995 + pitchRaw*0.005;
+  const headPitch = pitchRaw - ema.pitchSlow;
+
+  /* ---- 上肢特征（肘/腕）：挥砍、举手、合掌、口哨、框眼 ---- */
+  const shY = sh.y;
+  const wrRelL = wrL ? (shY - wrL.y) / torso : null;          // >0 = 腕高于肩
+  const wrRelR = wrR ? (shY - wrR.y) / torso : null;
+  const wrSpanX = (wrL && wrR) ? Math.abs(ux(wrL) - ux(wrR)) / torso : null;   // 双腕水平间距
+  const wrNoseL = (wrL && nose) ? d2(wrL, nose) / torso : null;                // 腕到鼻子距离
+  const wrNoseR = (wrR && nose) ? d2(wrR, nose) / torso : null;
+  // 手腕快慢线：右腕由「肩上」快速移到「肩下」= 挥砍
+  const A_FAST_W = 0.5;
+  if(wrR){
+    ema.wrRF = ema.wrRF==null ? wrR.y : ema.wrRF*(1-A_FAST_W)+wrR.y*A_FAST_W;
+    ema.wrRS = ema.wrRS==null ? wrR.y : ema.wrRS*(1-A_SLOW)+wrR.y*A_SLOW;
+  }
+  if(wrL){
+    ema.wrLF = ema.wrLF==null ? wrL.y : ema.wrLF*(1-A_FAST_W)+wrL.y*A_FAST_W;
+    ema.wrLS = ema.wrLS==null ? wrL.y : ema.wrLS*(1-A_SLOW)+wrL.y*A_SLOW;
+  }
+
+  if(state.calibrating){
+    state.calibFrames++;
+    if(state.calibFrames > 40){ state.calibrating = false; $("calibBadge").style.display = "none"; }
+    motionPause();
+    drawOverlay(pose); updateDebug({}, torso, hipY, feetY, true);
+    return;
+  }
+
+  const f = {
+    torso,
+    hipY, hipFastY: ema.hipFast, hipSlowY: ema.hipSlow,
+    feetFastY: ema.feetFast, feetSlowY: ema.feetSlow,
+    kneeLY: kneeL? kneeL.y : null, kneeRY: kneeR? kneeR.y : null,
+    kneeMinY: Math.min(...[kneeL,kneeR].filter(Boolean).map(p=>p.y)),
+    kneeLift: hipY - Math.min(...[kneeL,kneeR].filter(Boolean).map(p=>p.y)),   // 膝高于髋的量（>0=抬过髋）
+    ankleLift: ema.feetSlow - Math.min(...[ankL,ankR].filter(Boolean).map(p=>p.y)),  // 脚离站立基线的高度
+    ankleLUx: ankL? ux(ankL):null, ankleRUx: ankR? ux(ankR):null,
+    bodyUx, bodyUxFast: ema.bodyFast, bodyUxSlow: ema.bodySlow,
+    bodyVelX: ema.bodyFast - ema.bodySlow,                              // 横向快速位移（侧跳）
+    bodyOff,                                                            // 重心横向偏移（赛车转向，连续量）
+    feetAir: ema.feetSlow - ema.feetFast,                               // 双脚快速离地量
+    headOff,                                                            // >0=头转向用户右侧
+    headPitch,                                                          // >0=抬头
+    shY,
+    /* 上肢 */
+    wrRelL, wrRelR,                                                     // 腕高于肩的量
+    wrSpanX,                                                            // 双腕水平间距
+    wrNoseL, wrNoseR,                                                   // 腕到鼻子距离
+    wrLFastY: ema.wrLF, wrLSlowY: ema.wrLS,
+    wrRFastY: ema.wrRF, wrRSlowY: ema.wrRS,
+    wristsUp: !!(wrL && wrR && nose && wrL.y < nose.y - 0.02*torso && wrR.y < nose.y - 0.02*torso),
+    wristRel: (wrL && wrR && nose) ? (nose.y - Math.max(wrL.y, wrR.y)) / torso : null,
+  };
+  if(!canControl()) return;  // 不在旁观或离线期间积累动作，更不能在接管后回放
+  if(now - lastPoseAt > POSE_TTL_MS) clearLocalControls();
+  lastPoseAt = frameAt;
+  state.lastF = f;   // 供 combo 函数读取当前帧（如侧跳方向）
+  motionResume();
+  const sens = {sens: state.sens};
+  const dbgRows = {};
+  for(const a of ACTIONS){
+    if((a.preset||"zelda") !== currentPreset) continue;
+    let sm = ACTION_SM[a.id] || (ACTION_SM[a.id] = {enter:0, exit:0, active:false, coolUntil:0, dbg:"", hit:false});
+    if(!a.on){
+      sm.dbg="–"; sm.hit=false;
+      if(a.axis) motionStick[a.axis] = 0;      // 关闭时立即归零该轴
+      dbgRows[a.id]=sm; continue;
+    }
+    let r;
+    try{ r = a.cond(f, sens); }catch(e){ continue; }
+    sm.dbg = r.dbg||""; sm.hit = !!r.hit;
+    const t = now;
+    if(a.axis){
+      /* 摇杆类动作：命中时写入轴值（每帧更新，支持转头动态方向），松开归零 */
+      if(r.hit){
+        sm.enter++; sm.exit = 0;
+        if(sm.enter >= a.enter){
+          sm.active = true;
+          motionStick[a.axis] = a.axisVal ? a.axisVal(f) : (a.axisDir || 1);
+        }
+      }else{
+        sm.enter = 0; sm.exit++;
+        if(sm.active && sm.exit >= a.exit){ sm.active = false; motionStick[a.axis] = 0; }
+      }
+    }else if(r.hit){
+      sm.enter++; sm.exit = 0;
+      if(!sm.active && sm.enter >= a.enter && t >= sm.coolUntil){
+        if(a.hold){ sm.active = true; pressKey(a); }
+        else{
+          sm.coolUntil = t + (a.cooldown||800);
+          pressKey(a);
+          sm.enter = 0;
+        }
+      }
+    }else{
+      sm.enter = 0; sm.exit++;
+      if(sm.active && sm.exit >= a.exit){ sm.active = false; releaseKey(a); }
+    }
+    dbgRows[a.id] = sm;
+  }
+  motionStickSend();                            // 摇杆输出（内部去重+节流）
+  drawOverlay(pose);
+  updateDebug(dbgRows, torso, hipY, feetY, false);
+}
+
+/* ---------- 骨架叠加 ---------- */
+const BONES = [[5,6],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[5,7],[7,9],[6,8],[8,10],[0,5],[0,6]];
+const HOT = new Set([11,12,13,14,15,16]);
+function drawOverlay(pose){
+  const ctx = overlay.getContext("2d");
+  ctx.clearRect(0,0,overlay.width,overlay.height);
+  if(!pose) return;
+  const k = pose.keypoints;
+  ctx.lineWidth = 3; ctx.strokeStyle = "rgba(167,139,250,.85)";
+  for(const [a,b] of BONES){
+    if(k[a].score<0.3 || k[b].score<0.3) continue;
+    ctx.beginPath();
+    ctx.moveTo(overlay.width - k[a].x, k[a].y);
+    ctx.lineTo(overlay.width - k[b].x, k[b].y);
+    ctx.stroke();
+  }
+  for(let i=0;i<17;i++){
+    if(k[i].score<0.3) continue;
+    ctx.beginPath();
+    ctx.arc(overlay.width - k[i].x, k[i].y, HOT.has(i)?6:4, 0, Math.PI*2);
+    ctx.fillStyle = HOT.has(i) ? "#7c3aed" : "#e2e8f0";
+    ctx.fill();
+  }
+}
+
+/* ---------- 调试面板 ---------- */
+function updateDebug(rows, torso, hipY, feetY, calib){
+  const el = $("debugKV");
+  const so = $("stickOut");
+  if(so) so.textContent = `ly ${motionStick.ly.toFixed(2)} · rx ${motionStick.rx.toFixed(2)}`;
+  if(calib){ el.innerHTML = `<span>校准中…</span><span>${state.calibFrames}/40 帧</span>`; return; }
+  let html = `<span>躯干长</span><b>${torso.toFixed(0)} px</b>
+              <span>髋基线</span><b>${hipY.toFixed(0)} / ${ema.hipSlow.toFixed(0)}</b>
+              <span>脚基线</span><b>${feetY.toFixed(0)} / ${ema.feetSlow.toFixed(0)}</b>`;
+  for(const a of ACTIONS){
+    const sm = ACTION_SM[a.id];
+    if(!sm) continue;
+    const st = !a.on ? "关" : (sm.active? "ON" : (sm.coolUntil>performance.now()? "冷却" : (sm.hit? "●" : "·")));
+    const cls = !a.on? "" : sm.active? "on" : sm.hit? "hot" : "";
+    html += `<span>${a.name}</span><span class="live ${cls}" style="display:inline-block">${st} ${sm.dbg}</span>`;
+  }
+  el.innerHTML = html;
+}
+
+/* ================= 虚拟手柄（横版） ================= */
+function syncPadButtons(){
+  const pressedElements = new Set();
+  for(const {el} of virtualPointers.values()) pressedElements.add(el);
+  syncButtons();
+  padKeys.forEach(el=>el.classList.toggle("press", pressedElements.has(el)));
+}
+function capturePadPointer(el, e){
+  if(state.mode !== "pad" || !canControl() || e.button !== 0) return false;
+  e.preventDefault();
+  try{ el.setPointerCapture(e.pointerId); }catch(_){ return false; }
+  return true;
+}
+
+/* 摇杆：复用 controlAxes，左右摇杆不会互相覆盖 */
+const zone = $("stickZone"), cap = $("stickCap");
+const zoneR = $("stickZoneR"), capR = $("stickCapR");
+const stick  = { pid:null, ox:0, oy:0, dirs:new Set() };
+const stickR = { pid:null, ox:0, oy:0 };
+const padKeys = document.querySelectorAll("[data-key]");
+const STICK_DIR_KEY = {Up:"GP_Up", Down:"GP_Down", Left:"GP_Left", Right:"GP_Right"};
+const STICK_R = 48, STICK_DEAD = 16;
+const STICK_R2 = 38, STICK_DEAD2 = 12;
+
+function padSendAxes(force){ sendFullState(force); }
+function stickSetDirs(dirs){
+  stick.dirs = dirs;
+  syncPadButtons();
+}
+/* 左摇杆：Switch 只发四轴；Mac 键盘注入兼容方向键。 */
+zone.addEventListener("pointerdown", e=>{
+  if(stick.pid !== null || !capturePadPointer(zone, e)) return;
+  stick.pid = e.pointerId;
+  stick.ox = e.clientX; stick.oy = e.clientY;
+  cap.classList.add("press");
+});
+zone.addEventListener("pointermove", e=>{
+  if(e.pointerId !== stick.pid) return;
+  e.preventDefault();
+  let dx = e.clientX - stick.ox, dy = e.clientY - stick.oy;
+  const dist = Math.hypot(dx, dy);
+  if(dist > STICK_R){ dx = dx/dist*STICK_R; dy = dy/dist*STICK_R; }
+  cap.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px))`;
+  const dirs = new Set();
+  if(Math.abs(dx) > STICK_DEAD) dirs.add(dx > 0 ? "Right" : "Left");
+  if(Math.abs(dy) > STICK_DEAD) dirs.add(dy > 0 ? "Down" : "Up");
+  stickSetDirs(dirs);
+  padAxes.lx = Math.max(-1, Math.min(1, dx / STICK_R));
+  padAxes.ly = Math.max(-1, Math.min(1, dy / STICK_R));
+  padSendAxes();
+});
+function stickReset(){
+  cap.style.transform = "translate(-50%,-50%)";
+  cap.classList.remove("press");
+  stickSetDirs(new Set());
+  padAxes.lx = 0; padAxes.ly = 0;
+  padSendAxes(true);                     // 发送回中
+  stick.pid = null;
+}
+for(const event of ["pointerup", "pointercancel", "lostpointercapture"])
+  zone.addEventListener(event, e=>{ if(e.pointerId === stick.pid) stickReset(); });
+
+/* 右摇杆：视角（只输出 rx/ry，不做十字模拟） */
+zoneR.addEventListener("pointerdown", e=>{
+  if(stickR.pid !== null || !capturePadPointer(zoneR, e)) return;
+  stickR.pid = e.pointerId;
+  stickR.ox = e.clientX; stickR.oy = e.clientY;
+  capR.classList.add("press");
+});
+zoneR.addEventListener("pointermove", e=>{
+  if(e.pointerId !== stickR.pid) return;
+  e.preventDefault();
+  let dx = e.clientX - stickR.ox, dy = e.clientY - stickR.oy;
+  const dist = Math.hypot(dx, dy);
+  if(dist > STICK_R2){ dx = dx/dist*STICK_R2; dy = dy/dist*STICK_R2; }
+  capR.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px))`;
+  padAxes.rx = Math.abs(dx) > STICK_DEAD2 ? Math.max(-1, Math.min(1, dx / STICK_R2)) : 0;
+  padAxes.ry = Math.abs(dy) > STICK_DEAD2 ? Math.max(-1, Math.min(1, dy / STICK_R2)) : 0;
+  padSendAxes();
+});
+function stickResetR(){
+  capR.style.transform = "translate(-50%,-50%)";
+  capR.classList.remove("press");
+  padAxes.rx = 0; padAxes.ry = 0;
+  padSendAxes(true);
+  stickR.pid = null;
+}
+for(const event of ["pointerup", "pointercancel", "lostpointercapture"])
+  zoneR.addEventListener(event, e=>{ if(e.pointerId === stickR.pid) stickResetR(); });
+
+/* 每个手指独立持有按键，松开一个手指不会释放另一个仍按住的同键。 */
+padKeys.forEach(el=>{
+  const key = el.dataset.key;
+  el.addEventListener("pointerdown", e=>{
+    if(!capturePadPointer(el, e)) return;
+    virtualPointers.set(e.pointerId, {el,key});
+    syncPadButtons(); sendFullState();
+  });
+  for(const event of ["pointerup", "pointercancel", "lostpointercapture"])
+    el.addEventListener(event, e=>{
+      if(virtualPointers.get(e.pointerId)?.el !== el) return;
+      virtualPointers.delete(e.pointerId);
+      syncPadButtons(); sendFullState();
+    });
+});
+
+/* ================= 模式切换 ================= */
+function switchMode(mode){
+  if(state.mode === mode) return;
+  state.mode = mode;
+  state.motionPaused = false;
+  stopLoop();
+  $("runBtn").textContent = "开始检测";
+  document.querySelectorAll(".mode-tab").forEach(t=>t.classList.toggle("active", t.dataset.mode === mode));
+  $("motionView").style.display = mode === "motion" ? "" : "none";
+  $("padView").style.display = mode === "pad" ? "" : "none";
+  checkPadOrientation();
+}
+document.querySelectorAll(".mode-tab").forEach(t=>
+  t.addEventListener("click", ()=>switchMode(t.dataset.mode)));
+
+/* ================= 启动 ================= */
+/* 手柄模式 + 竖屏 → 提示横屏（横屏媒体查询会把控件放大并横向铺开） */
+function checkPadOrientation(){
+  const hint = $("rotateHint");
+  if(!hint) return;
+  const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+  const inPad = $("padView").style.display !== "none";
+  hint.style.display = (isPortrait && inPad) ? "" : "none";
+}
+window.addEventListener("resize", checkPadOrientation);
+window.addEventListener("orientationchange", ()=>setTimeout(checkPadOrientation, 150));
+
+function setPreset(p){
+  if(p === currentPreset) return;
+  resetMotionSession();
+  sendFullState(true);
+  Object.keys(ACTION_SM).forEach(k=>delete ACTION_SM[k]);
+  currentPreset = p;
+  document.querySelectorAll(".preset-tab").forEach(t=>t.classList.toggle("active", t.dataset.preset===p));
+  renderActions();
+  logEvent(`游戏预设 → ${p === "racing" ? "赛车（马里奥赛车8）" : "塞尔达"}`);
+}
+document.querySelectorAll(".preset-tab").forEach(t=>
+  t.addEventListener("click", ()=>setPreset(t.dataset.preset)));
+
+renderActions();
+setOwnerUI();
+wsConnect();
+$("invWalk").addEventListener("change", e=>{
+  DIR.walk = e.target.checked ? -1 : 1;
+  logEvent(`走路方向 ${DIR.walk>0? "正常(上=前进)" : "反转(下=前进)"}`);
+});
+$("invHead").addEventListener("change", e=>{
+  DIR.head = e.target.checked ? -1 : 1;
+  logEvent(`转头方向 ${DIR.head>0? "正常(右转=右视角)" : "反转(右转=左视角)"}`);
+});
+logEvent("页面加载完成，等待服务连接");
+</script>
+</body>
+</html>
