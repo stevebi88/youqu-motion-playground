@@ -3,6 +3,8 @@
 把手机变成低成本体感手柄：手机浏览器用摄像头做本地肢体识别（TF.js + MoveNet，全程不上传画面），把动作映射成手柄按键，经 WebSocket 发到自建中继服务，再由 ESP32-S3 以 USB HID 手柄（HORIPAD S 伪装）直插 Switch——让 Switch 游戏变成体感玩法。
 
 > Turn your phone into a low-cost motion gamepad: camera body-tracking → gamepad buttons → ESP32-S3 USB → Switch
+>
+> 出品方：杭州智转科技有限公司（YouQu Motion Playground）
 
 ## 架构
 

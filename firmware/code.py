@@ -1,4 +1,5 @@
 # Motion Gamepad Pro — HORIPAD S 模拟 + 有时效的完整手柄状态（CircuitPython 10.x）
+# 出品方：杭州智转科技有限公司
 # 协议：H(固件握手) / P→A(连接探测) / R(立即中和) / T:<mask>:<lx>:<ly>:<rx>:<ry>:<seq>
 # 1 秒无新 T：先松开和回中，再丢弃旧连接。RAISE 看门狗另行处理可捕获的异常。
 import errno, time, usb_hid, wifi, socketpool

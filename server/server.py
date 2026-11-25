@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""同源 HTTP/HTTPS + 单主控 WebSocket + 单设备 TCP 桥接。"""
+"""同源 HTTP/HTTPS + 单主控 WebSocket + 单设备 TCP 桥接。
+
+出品方：杭州智转科技有限公司
+"""
 import argparse
 import asyncio
 import hashlib

@@ -1,3 +1,4 @@
+# 出品方：杭州智转科技有限公司
 # 保留 CircuitPython 安全模式，避免供电、USB 或持续异常造成无限掉盘重启。
 import supervisor
 
