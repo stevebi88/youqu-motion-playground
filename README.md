@@ -6,6 +6,21 @@
 >
 > 出品方：杭州智转科技有限公司（YouQu Motion Playground）
 
+## 界面与实拍
+
+<table>
+  <tr>
+    <td width="33%" align="center"><img src="docs/images/demo-switch-desktop.jpg" alt="手机手柄 + ESP32 + Switch 实拍"/></td>
+    <td width="33%" align="center"><img src="docs/images/demo-web-ui.png" alt="网页控制台"/></td>
+    <td width="33%" align="center"><img src="docs/images/demo-projector-bodyplay.jpg" alt="投影仪全身体感实拍"/></td>
+  </tr>
+  <tr align="center">
+    <td>手机手柄 → ESP32-S3 → Switch 实拍<br/>（手机虚拟手柄模式）</td>
+    <td>网页控制台：体感模式 / 动作映射</td>
+    <td>投影大屏 · 全身体感实拍<br/>（玩家无需看手机）</td>
+  </tr>
+</table>
+
 ## 架构
 
 ```
@@ -102,6 +117,38 @@ server 可选参数：`--host`（默认 0.0.0.0）、`--http-port`（默认 8443
 
 - 摇杆语义：左摇杆=移动（支持斜向），右摇杆=视角；十字键可手动按（切武器/切盾/技能/口哨）。
 - 按住类动作持续输入，点触类动作自动释放；所有动作的触发帧数（enter/exit）与冷却时间可在 `web/index.html` 的 `ACTIONS` 数组中调整。
+### 换一个游戏：三步自定义映射
+
+全部映射集中在前端单文件 `web/index.html` 的 `ACTIONS` 数组——一条 = 一个「肢体动作 → 手柄输出」。
+
+字段速查：
+
+| 字段 | 含义 |
+|---|---|
+| `key:"GP_Y"` | 输出的手柄键：`GP_A / GP_B / GP_X / GP_Y`、`GP_L / GP_R / GP_ZL / GP_ZR`、十字键 `GP_Left / GP_Right / GP_Up / GP_Down`、`GP_LS / GP_RS`（摇杆按压）、`GP_Home` |
+| `hold` | `true` = 按住持续输出（如举盾）；`false` = 触发后自动释放（如挥剑） |
+| `on` | 网页上该动作的默认开关 |
+| `axis` + `axisVal:(f)=>…` | 模拟量映射：连续输出到摇杆（如「身体左右倾斜 = 左摇杆转向」）；`f` 里可用的身体特征量见同文件 `extractFeatures()` |
+| `preset` | 所属游戏页签：内置 `zelda`（塞尔达）/ `racing`（赛车）；对应网页顶部的页签按钮 |
+| `group / name / sub` | 网页上的分组与文案 |
+
+给新游戏加一套映射，三步：
+
+1. 在 `index.html` 预设页签处加一个按钮：`<button class="preset-tab" data-preset="mario">🍄 马力欧</button>`
+2. 在 `ACTIONS` 数组复制几条条目，改 `preset:"mario"`，把 `key` / `axis` 换成该游戏的键位
+3. 刷新网页即可生效（纯静态前端，无需重启服务）——实测后调整灵敏度滑杆与触发帧数
+
+### AI Agent 二次开发（推荐）
+
+仓库刻意保持 AI 友好：前端全部逻辑在单文件 `web/index.html`，服务端单文件 `server/server.py`，固件三个文件各司其职，本 README 即全景文档。把仓库目录直接喂给 **WorkBuddy / Codex / Claude Code / Cursor** 等编码智能体，用自然语言说需求即可二开。示例提示词：
+
+- 「读 `web/index.html` 的 `ACTIONS` 数组，为《马力欧赛车 8 豪华版》新增预设：身体前倾 = 加速（按住 A）、身体左/右倾 = 转向（左摇杆）、下蹲 = 漂移（按住 R），并加一个 🍄 页签。」
+- 「新增一个体感动作：右腿向外抬起约 30° 并保持 1 秒触发 `GP_Home`，默认关闭。」
+- 「把 server 的 TCP 协议加一个震动反馈字段，ESP32 端用 LED / 蜂鸣器提示。」（涉及固件，改完把文件拷回 CIRCUITPY，见 `firmware/FIRMWARE.md`）
+
+改前端刷新即生效；改固件需重新拷贝文件到 CIRCUITPY 并重启板子。
+
+
 
 ## FAQ
 
